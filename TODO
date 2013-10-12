@@ -1,0 +1,3 @@
+- Let the user specify a URL format. We are using that hardcoded
+  format currently to avoid having the library eliminate "duplicate"
+  entries.
