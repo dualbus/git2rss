@@ -108,48 +108,70 @@ if(!defined $description) {
 # first line of the description.
 $title = (split /\n/, $description)[0] unless defined $title;
 
-my $git_command = sprintf('git log --max-count=%d |', $max);
+my $git_command = sprintf('git log --format=raw --max-count=%d |', $max);
 my $gitlog = IO::File->new($git_command);
 
 my $rss = XML::RSS::SimpleGen->new($url, $title, $description);
 $rss->webMaster($email);
 
-sub display_entry {
-    my ($title, $date, $desc) = @_;
 
-    if ($title =~ /\s/) {
-        $rss->item($url, $title, $date . "\n" . $desc);
-    } else {
-        $rss->item("$url/$title", $title, $date . "\n" . $desc);
-    }
+
+sub push_entry {
+    my ($rss, $title, $description) = @_;
+
+    $rss->item($url, $title, $description);
 }
 
-my ($date, $entry_title, $desc);
+
+
+sub parse_commit_author {
+    my ($line) = @_;
+
+    return ($line, time);
+}
+
+
+
+my (
+    $line,
+
+    $commit,
+    $entry_author,
+    $entry_date,
+    $entry_description,
+    @entry_description_raw,
+    $entry_title
+);
 
 while (defined($_ = $gitlog->getline)) {
-    chomp;
+    chomp; $line = $_;
 
-    if (/^Author: / and defined $entry_title) {
-        display_entry($entry_title, $date, $desc);
-        $date = $entry_title = $desc = undef;
+    if ($line =~ /^commit /) {
 
-    } elsif (s/^Date:\s*//) {
-        $date = $_;
+        if(defined $commit) {
+            
+            $entry_title = @entry_description_raw[0];
+            shift @entry_description_raw, 2;
+            $entry_description = join "\n", @entry_description_raw;
 
-    } elsif (/^\s*$/) {
-        $entry_title = $gitlog->getline;
-
-        for ($entry_title) { s/^\s*//; s/\s*$//; }
-
-        while (defined($_ = $gitlog->getline)) {
-            last if /^commit /;
-            $desc .= $_;
+            push_entry($rss, $entry_title, $entry_description);
         }
+
+        $commit = (split /\s+/, $line)[1];
+
+
+        $entry_author = $entry_date =
+            $entry_description = $entry_title = undef;
     }
+
+    ($entry_author, $entry_date) = parse_commit_author($line)
+                                      if $line =~ /^author /;
+
+    push @entry_description_raw, $line if $line =~ /^\s+/;
 }
 
 if (defined $entry_title) {
-    display_entry($entry_title, $date, $desc);
+    display_entry($entry_title, $entry_date, $entry_description);
 }
 
 print $rss->as_string;
