@@ -108,8 +108,8 @@ if(!defined $description) {
 # first line of the description.
 $title = (split /\n/, $description)[0] unless defined $title;
 
-
-my $gitlog = IO::File->new("git log --max-count=$max|");
+my $git_command = sprintf('git log --max-count=%d', $max);
+my $gitlog = IO::File->new($git_command);
 
 my $rss = XML::RSS::SimpleGen->new($url, $title,
     $description);
