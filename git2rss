@@ -66,12 +66,12 @@ my $syntax = "syntax: $0 --url repo-url [--max 20]\n";
 
 # Get options from command line.
 GetOptions(
-  "description=s" => \$description,
-  "email=s" => \$email,
-  "max=i" => \$max,
-  "title=s" => \$title,
-  "url=s" => \$url
-  ) or die $syntax;
+    "description=s" => \$description,
+    "email=s" => \$email,
+    "max=i" => \$max,
+    "title=s" => \$title,
+    "url=s" => \$url
+    ) or die $syntax;
 
 die "$0: url option is required\n" unless defined $url;
 
@@ -93,15 +93,15 @@ delete $ENV{'GIT_DIR'};
 # Get the description from the repository in case it wasn't supplied
 # as a command line option.
 if(!defined $description) {
-  if(-r ".git/description") {
-    open my $fh, '<', ".git/description";
-    $description = do { local $/; <$fh> };
-  } elsif(-r "description") {
-    open my $fh, '<', "description";
-    $description = do { local $/; <$fh> };
-  } else {
-    $description = 'unknown';
-  }
+    if(-r ".git/description") {
+        open my $fh, '<', ".git/description";
+        $description = do { local $/; <$fh> };
+    } elsif(-r "description") {
+        open my $fh, '<', "description";
+        $description = do { local $/; <$fh> };
+    } else {
+        $description = 'unknown';
+    }
 }
 
 # If the title was not set from the command line, then set is as the
@@ -118,9 +118,9 @@ $rss->webMaster($email);
 sub display {
     my ($title, $date, $desc) = @_;
     if ($title =~ /\s/) {
-	$rss->item($url, $title, $date . "\n" . $desc);
+        $rss->item($url, $title, $date . "\n" . $desc);
     } else {
-	$rss->item("$url/$title", $title, $date . "\n" . $desc);
+        $rss->item("$url/$title", $title, $date . "\n" . $desc);
     }
 }
 
@@ -129,17 +129,19 @@ my ($date, $entry_title, $desc);
 while (defined($_ = $gitlog->getline)) {
     chomp;
     if (/^Author: / and defined $entry_title) {
-	display($entry_title, $date, $desc);
-	$date = $entry_title = $desc = undef;
+        display($entry_title, $date, $desc);
+        $date = $entry_title = $desc = undef;
     } elsif (s/^Date:\s*//) {
-	$date = $_;
+        $date = $_;
     } elsif (/^\s*$/) {
-	$entry_title = $gitlog->getline;
-	for ($entry_title) { s/^\s*//; s/\s*$//; }
-	while (defined($_ = $gitlog->getline)) {
-	    last if /^commit /;
-	    $desc .= $_;
-	}
+        $entry_title = $gitlog->getline;
+
+        for ($entry_title) { s/^\s*//; s/\s*$//; }
+
+        while (defined($_ = $gitlog->getline)) {
+            last if /^commit /;
+            $desc .= $_;
+        }
     }
 }
 
