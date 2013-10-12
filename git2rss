@@ -86,8 +86,10 @@ $email = sprintf("postmaster@%s", URI->new($url)->host)
 #   GIT_DIR=/path/to/bare.git git2rss ...
 # and for normal repositories:
 #   GIT_DIR=/path/to/normal/.git git2rss ...
-chdir  $ENV{'GIT_DIR'} or die 'repository does not exist';
-delete $ENV{'GIT_DIR'};
+if(defined $ENV{'GIT_DIR'}) {
+    chdir  $ENV{'GIT_DIR'} or die 'repository does not exist';
+    delete $ENV{'GIT_DIR'};
+}
 
 
 # Get the description from the repository in case it wasn't supplied
@@ -112,14 +114,23 @@ my $git_command = sprintf('git log --format=raw --max-count=%d |', $max);
 my $gitlog = IO::File->new($git_command);
 
 my $rss = XML::RSS::SimpleGen->new($url, $title, $description);
-$rss->webMaster($email);
+   $rss->webMaster($email);
 
 
 
 sub push_entry {
-    my ($rss, $title, $description) = @_;
+    my $rss = shift;
+    my $url = shift;
+    my $commit = shift;
+    my @commit_message = @_;
+    my ($entry_url, $entry_title, $entry_description);
 
-    $rss->item($url, $title, $description);
+    $entry_url = sprintf("%s#%s", $url, $commit);
+    $entry_title = shift @commit_message;
+    $entry_description = join "\n", @commit_message;
+
+
+    $rss->item($entry_url, $entry_title, $entry_description);
 }
 
 
@@ -137,41 +148,33 @@ my (
 
     $commit,
     $entry_author,
-    $entry_date,
-    $entry_description,
-    @entry_description_raw,
-    $entry_title
+    $commit_date,
+    @commit_message,
 );
 
 while (defined($_ = $gitlog->getline)) {
     chomp; $line = $_;
 
     if ($line =~ /^commit /) {
-
         if(defined $commit) {
-            
-            $entry_title = @entry_description_raw[0];
-            shift @entry_description_raw, 2;
-            $entry_description = join "\n", @entry_description_raw;
-
-            push_entry($rss, $entry_title, $entry_description);
+            push_entry($rss, $url, $commit, @commit_message);
         }
 
         $commit = (split /\s+/, $line)[1];
 
+        $entry_author = $commit_date = undef;
 
-        $entry_author = $entry_date =
-            $entry_description = $entry_title = undef;
+        @commit_message = ();
     }
 
-    ($entry_author, $entry_date) = parse_commit_author($line)
+    ($entry_author, $commit_date) = parse_commit_author($line)
                                       if $line =~ /^author /;
-
-    push @entry_description_raw, $line if $line =~ /^\s+/;
+    if($line =~ /^\s+/) {
+      $line =~ s/^ {4}//;
+      push (@commit_message, $line)
+    }
 }
 
-if (defined $entry_title) {
-    display_entry($entry_title, $entry_date, $entry_description);
-}
+push_entry($rss, $url, $commit, @commit_message) if defined $commit; 
 
 print $rss->as_string;
