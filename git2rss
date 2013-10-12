@@ -108,15 +108,15 @@ if(!defined $description) {
 # first line of the description.
 $title = (split /\n/, $description)[0] unless defined $title;
 
-my $git_command = sprintf('git log --max-count=%d', $max);
+my $git_command = sprintf('git log --max-count=%d |', $max);
 my $gitlog = IO::File->new($git_command);
 
-my $rss = XML::RSS::SimpleGen->new($url, $title,
-    $description);
+my $rss = XML::RSS::SimpleGen->new($url, $title, $description);
 $rss->webMaster($email);
 
-sub display {
+sub display_entry {
     my ($title, $date, $desc) = @_;
+
     if ($title =~ /\s/) {
         $rss->item($url, $title, $date . "\n" . $desc);
     } else {
@@ -128,11 +128,14 @@ my ($date, $entry_title, $desc);
 
 while (defined($_ = $gitlog->getline)) {
     chomp;
+
     if (/^Author: / and defined $entry_title) {
-        display($entry_title, $date, $desc);
+        display_entry($entry_title, $date, $desc);
         $date = $entry_title = $desc = undef;
+
     } elsif (s/^Date:\s*//) {
         $date = $_;
+
     } elsif (/^\s*$/) {
         $entry_title = $gitlog->getline;
 
@@ -146,7 +149,7 @@ while (defined($_ = $gitlog->getline)) {
 }
 
 if (defined $entry_title) {
-    display($entry_title, $date, $desc);
+    display_entry($entry_title, $date, $desc);
 }
 
 print $rss->as_string;
