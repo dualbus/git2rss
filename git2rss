@@ -53,20 +53,67 @@ generates an RSS feed on stdout. The url arg is mandatory.
 use Getopt::Long;
 use XML::RSS::SimpleGen;
 use IO::File;
+use URI;
 use Fatal qw(IO::File::new IO::Handle::close);
 
 my $url = undef;
+my $title = undef;
+my $description = undef;
+my $email = undef;
 my $max = 20;
+
 my $syntax = "syntax: $0 --url repo-url [--max 20]\n";
 
-GetOptions("url=s" => \$url, "max=i" => \$max) or die $syntax;
+# Get options from command line.
+GetOptions(
+  "description=s" => \$description,
+  "email=s" => \$email,
+  "max=i" => \$max,
+  "title=s" => \$title,
+  "url=s" => \$url
+  ) or die $syntax;
+
 die "$0: url option is required\n" unless defined $url;
+
+
+$email = sprintf("postmaster@%s", URI->new($url)->host)
+          unless defined $email;
+
+
+# Change directory ourselves, to access files in the repository using
+# relative references. We delete the GIT_DIR variable to avoid git
+# interpreting it also. For bare repositories, this should look like:
+#   GIT_DIR=/path/to/bare.git git2rss ...
+# and for normal repositories:
+#   GIT_DIR=/path/to/normal/.git git2rss ...
+chdir  $ENV{'GIT_DIR'} or die 'repository does not exist';
+delete $ENV{'GIT_DIR'};
+
+
+# Get the description from the repository in case it wasn't supplied
+# as a command line option.
+if(!defined $description) {
+  if(-r ".git/description") {
+    open my $fh, '<', ".git/description";
+    $description = do { local $/; <$fh> };
+  } elsif(-r "description") {
+    open my $fh, '<', "description";
+    $description = do { local $/; <$fh> };
+  } else {
+    $description = 'unknown';
+  }
+}
+
+# If the title was not set from the command line, then set is as the
+# first line of the description.
+$title = (split /\n/, $description)[0] unless defined $title;
+
 
 my $gitlog = IO::File->new("git log --max-count=$max|");
 
-my $rss = XML::RSS::SimpleGen->new($url, "Bent Linux",
-    "Distro based on uClibc, static linking, bpm packaging");
-$rss->webMaster('bet@rahul.net');
+my $rss = XML::RSS::SimpleGen->new($url, $title,
+    $description);
+$rss->webMaster($email);
 
 sub display {
     my ($title, $date, $desc) = @_;
@@ -77,18 +124,18 @@ sub display {
     }
 }
 
-my ($date, $title, $desc);
+my ($date, $entry_title, $desc);
 
 while (defined($_ = $gitlog->getline)) {
     chomp;
-    if (/^Author: / and defined $title) {
-	display($title, $date, $desc);
-	$date = $title = $desc = undef;
+    if (/^Author: / and defined $entry_title) {
+	display($entry_title, $date, $desc);
+	$date = $entry_title = $desc = undef;
     } elsif (s/^Date:\s*//) {
 	$date = $_;
     } elsif (/^\s*$/) {
-	$title = $gitlog->getline;
-	for ($title) { s/^\s*//; s/\s*$//; }
+	$entry_title = $gitlog->getline;
+	for ($entry_title) { s/^\s*//; s/\s*$//; }
 	while (defined($_ = $gitlog->getline)) {
 	    last if /^commit /;
 	    $desc .= $_;
@@ -96,8 +143,8 @@ while (defined($_ = $gitlog->getline)) {
     }
 }
 
-if (defined $title) {
-    display($title, $date, $desc);
+if (defined $entry_title) {
+    display($entry_title, $date, $desc);
 }
 
 print $rss->as_string;
