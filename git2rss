@@ -110,6 +110,12 @@ if(!defined $description) {
 # first line of the description.
 $title = (split /\n/, $description)[0] unless defined $title;
 
+# Remove the first line from the description, since we'll use that as
+# the title of the repository.
+if($description =~ /\n/m) {
+  $description =~ s/^[^\n]*\n\s*//m;
+}
+
 my $git_command = sprintf('git log --format=raw --max-count=%d |', $max);
 my $gitlog = IO::File->new($git_command);
 
